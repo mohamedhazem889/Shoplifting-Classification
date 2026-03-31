@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shoplifting Classifier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 40px 48px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      width: 100%;
+      max-width: 480px;
+    }
+    h1 {
+      font-size: 1.6rem;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: #666;
+      font-size: .95rem;
+      margin-bottom: 28px;
+    }
+    .field { margin-bottom: 20px; }
+    label {
+      display: block;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 6px;
+      font-size: .9rem;
+    }
+    input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      border: 2px dashed #c5c5c5;
+      border-radius: 8px;
+      background: #fafafa;
+      cursor: pointer;
+      font-size: .9rem;
+    }
+    input[type="file"]:hover { border-color: #7c3aed; }
+    .help { color: #888; font-size: .82rem; margin-top: 4px; }
+    .errors { list-style: none; }
+    .errors li {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      font-size: .88rem;
+    }
+    button[type="submit"] {
+      width: 100%;
+      padding: 13px;
+      background: #7c3aed;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    button[type="submit"]:hover { background: #6d28d9; }
+    .loading { display: none; text-align: center; margin-top: 16px; color: #555; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🛒 Shoplifting Classifier</h1>
+    <p class="subtitle">Upload a surveillance video to check for shoplifting activity.</p>
+
+    <form method="post" enctype="multipart/form-data" id="upload-form">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <ul class="errors">
+          {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <div class="field">
+        <label for="{{ form.video.id_for_label }}">{{ form.video.label }}</label>
+        {{ form.video }}
+        {% if form.video.help_text %}
+          <span class="help">{{ form.video.help_text }}</span>
+        {% endif %}
+        {% for error in form.video.errors %}
+          <ul class="errors"><li>{{ error }}</li></ul>
+        {% endfor %}
+      </div>
+
+      <button type="submit" id="submit-btn">Analyse Video</button>
+      <p class="loading" id="loading-msg">⏳ Processing… this may take a few seconds.</p>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('upload-form').addEventListener('submit', function() {
+      document.getElementById('submit-btn').disabled = true;
+      document.getElementById('loading-msg').style.display = 'block';
+    });
+  </script>
+</body>
+</html>

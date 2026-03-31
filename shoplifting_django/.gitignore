@@ -1,0 +1,14 @@
+# model weights are large binaries – exclude from version control
+model_weights/
+*.pth
+*.pt
+*.keras
+# Django runtime artefacts
+db.sqlite3
+media/
+staticfiles/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
