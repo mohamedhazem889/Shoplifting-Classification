@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shoplifting Detector — R3D-18</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 1rem;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 25px 50px rgba(0,0,0,.5);
+    }
+    h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: .4rem; }
+    .subtitle { color: #94a3b8; font-size: .9rem; margin-bottom: 2rem; }
+    label { display: block; font-size: .85rem; color: #94a3b8; margin-bottom: .5rem; }
+    .drop-zone {
+      border: 2px dashed #475569;
+      border-radius: .75rem;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #6366f1;
+      background: #1a2744;
+    }
+    .drop-zone .icon { font-size: 2.5rem; }
+    .drop-zone p { margin-top: .5rem; color: #94a3b8; font-size: .9rem; }
+    .drop-zone .chosen { color: #a5b4fc; font-weight: 600; font-size: .95rem; margin-top: .4rem; }
+    #fileInput { display: none; }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: .85rem;
+      margin-top: 1.25rem;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: .6rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, opacity .2s;
+    }
+    .btn:hover:not(:disabled) { background: #4f46e5; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .result {
+      margin-top: 1.75rem;
+      padding: 1.25rem;
+      border-radius: .75rem;
+      display: none;
+    }
+    .result.shoplifter { background: #450a0a; border: 1px solid #ef4444; }
+    .result.safe       { background: #052e16; border: 1px solid #22c55e; }
+    .result .label {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: .4rem;
+    }
+    .result.shoplifter .label { color: #f87171; }
+    .result.safe       .label { color: #4ade80; }
+    .result .meta { font-size: .85rem; color: #94a3b8; }
+    .confidence-bar {
+      height: 8px;
+      border-radius: 4px;
+      background: #1e293b;
+      margin-top: .75rem;
+      overflow: hidden;
+    }
+    .confidence-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .4s ease;
+    }
+    .shoplifter .confidence-fill { background: #ef4444; }
+    .safe       .confidence-fill { background: #22c55e; }
+    .spinner {
+      width: 22px; height: 22px;
+      border: 3px solid #6366f1;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: .5rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-box {
+      margin-top: 1.25rem;
+      padding: 1rem;
+      background: #450a0a;
+      border: 1px solid #b91c1c;
+      border-radius: .6rem;
+      font-size: .875rem;
+      color: #fca5a5;
+      display: none;
+    }
+    .api-hint {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #0f172a;
+      border-radius: .6rem;
+      font-size: .78rem;
+      color: #64748b;
+    }
+    .api-hint code { color: #a5b4fc; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎥 Shoplifting Detector</h1>
+    <p class="subtitle">Powered by R3D-18 fine-tuned on shoplifting footage</p>
+
+    <label>Upload a video clip</label>
+    <div class="drop-zone" id="dropZone">
+      <div class="icon">📂</div>
+      <p>Drag &amp; drop a video here, or click to browse</p>
+      <p class="chosen" id="chosenName"></p>
+      <input type="file" id="fileInput" accept=".mp4,.avi,.mov,.mkv,.webm"/>
+    </div>
+
+    <button class="btn" id="submitBtn" disabled>Analyse Video</button>
+
+    <div class="result" id="resultBox">
+      <div class="label" id="resultLabel"></div>
+      <div class="meta" id="resultMeta"></div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" id="confBar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="api-hint">
+      <strong>REST API:</strong><br/>
+      <code>POST /api/predict/</code> &nbsp;·&nbsp; multipart/form-data, key <code>video</code>
+    </div>
+  </div>
+
+  <script>
+    const dropZone  = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const chosenName= document.getElementById('chosenName');
+    const submitBtn = document.getElementById('submitBtn');
+    const resultBox = document.getElementById('resultBox');
+    const resultLabel = document.getElementById('resultLabel');
+    const resultMeta  = document.getElementById('resultMeta');
+    const confBar     = document.getElementById('confBar');
+    const errorBox    = document.getElementById('errorBox');
+
+    let selectedFile = null;
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files.length) setFile(fileInput.files[0]); });
+
+    function setFile(file) {
+      selectedFile = file;
+      chosenName.textContent = file.name;
+      submitBtn.disabled = false;
+      resultBox.style.display = 'none';
+      errorBox.style.display  = 'none';
+    }
+
+    submitBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      submitBtn.disabled  = true;
+      submitBtn.innerHTML = '<span class="spinner"></span> Analysing…';
+      resultBox.style.display = 'none';
+      errorBox.style.display  = 'none';
+
+      const formData = new FormData();
+      formData.append('video', selectedFile);
+
+      try {
+        const res  = await fetch('/api/predict/', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error || 'Unknown server error');
+
+        const r = data.result;
+        const isShoplifter = r.label === 1;
+
+        resultBox.className = 'result ' + (isShoplifter ? 'shoplifter' : 'safe');
+        resultLabel.textContent = isShoplifter ? '🚨 Shoplifter Detected' : '✅ No Shoplifting Detected';
+        resultMeta.textContent  = `Confidence: ${r.confidence_pct}%  ·  Raw prob: ${r.probability}`;
+        confBar.style.width = r.confidence_pct + '%';
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        errorBox.textContent = '⚠️ ' + err.message;
+        errorBox.style.display = 'block';
+      } finally {
+        submitBtn.disabled  = false;
+        submitBtn.textContent = 'Analyse Video';
+      }
+    });
+  </script>
+</body>
+</html>
